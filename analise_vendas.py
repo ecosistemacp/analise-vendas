@@ -5,9 +5,10 @@ from tkinter import ttk
 import matplotlib.pyplot as plt
 import os
 from tabulate import tabulate
+from PIL import Image, ImageTk
 
 # Função para ler o arquivo Excel e fazer a análise temporal
-def ler_excel(arquivo_excel, diretorio_saida):
+def ler_excel(arquivo_excel, diretorio_saida, data_inicio, data_fim):
     try:
         df = pd.read_excel(arquivo_excel)
         
@@ -19,6 +20,16 @@ def ler_excel(arquivo_excel, diretorio_saida):
         
         # Processar a coluna "dhEmi"
         df['dhEmi'] = pd.to_datetime(df['dhEmi'])
+         
+        # Filtrar os dados com base nas datas fornecidas
+        if data_inicio and data_fim:
+            data_inicio = pd.to_datetime(data_inicio, dayfirst=True).tz_localize(df['dhEmi'].dt.tz)
+            data_fim = pd.to_datetime(data_fim, dayfirst=True).tz_localize(df['dhEmi'].dt.tz)
+            df = df[(df['dhEmi'] >= data_inicio) & (df['dhEmi'] <= data_fim)]
+        
+        if df.empty:
+            raise ValueError("Não há dados no intervalo de datas fornecido.")
+        
         df['Data'] = df['dhEmi'].dt.date
         df['Hora'] = df['dhEmi'].dt.hour
         df['Mes'] = df['dhEmi'].dt.to_period('M')
@@ -173,14 +184,25 @@ def selecionar_arquivo():
     if arquivo_excel:
         diretorio_saida = filedialog.askdirectory(title="Selecione o diretório para salvar a pasta")
         if diretorio_saida:
-            ler_excel(arquivo_excel, diretorio_saida)
+            data_inicio = entrada_data_inicio.get()
+            data_fim = entrada_data_fim.get()
+            ler_excel(arquivo_excel, diretorio_saida, data_inicio, data_fim)
 
 # Criar a janela principal
 root = tk.Tk()
 root.title("Leitor de Arquivo Excel")
 
 # Definir o tamanho da janela
-root.geometry("400x200")
+window_width = 800
+window_height = 600
+root.geometry(f"{window_width}x{window_height}")
+
+# Centralizar a janela na tela
+screen_width = root.winfo_screenwidth()
+screen_height = root.winfo_screenheight()
+position_top = int(screen_height / 2 - window_height / 2)
+position_right = int(screen_width / 2 - window_width / 2)
+root.geometry(f"{window_width}x{window_height}+{position_right}+{position_top}")
 
 # Estilizar a interface
 style = ttk.Style(root)
@@ -190,16 +212,62 @@ style.theme_use('clam')  # Temas disponíveis: 'clam', 'alt', 'default', 'classi
 style.configure('TLabel', font=('Helvetica', 12))
 style.configure('TButton', font=('Helvetica', 12))
 
-# Criar um frame principal
-frame = ttk.Frame(root, padding="20")
-frame.pack(fill=tk.BOTH, expand=True)
+# Criar frames
+left_frame = ttk.Frame(root, width=int(window_width * 0.5), height=window_height, relief=tk.SUNKEN)
+left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+right_frame = ttk.Frame(root, width=int(window_width * 0.5), height=window_height, relief=tk.RAISED)
+right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+
+# Configurar o fundo brranco no fame direito
+right_frame.configure(style="Right.TFrame")
+style.configure("Right.TFrame", background="white")
+
+# Adicionar imagem no frame esquerdo
+image_path = "../assets/imgs/logo.png"
+if os.path.exists(image_path):
+    image = Image.open(image_path)
+
+    # Definir tamanho máximo para a imagem
+    max_width = int(window_width * 0.5)  # Ajuste aqui para adicionar padding
+    max_height = window_height - 40  # Ajuste aqui para adicionar padding vertical
+
+    # Redimensionar a imagem mantendo a proporção
+    image.thumbnail((max_width, max_height), Image.LANCZOS)
+    photo = ImageTk.PhotoImage(image)
+
+    # Calcular margens para centralizar a imagem com padding
+    x_offset = (int(window_width * 0.6) - image.width) // 2
+    y_offset = (window_height - image.height) // 2
+
+    # Criar label para a imagem e centralizá-la com padding
+    label_image = ttk.Label(left_frame, image=photo)
+    label_image.image = photo  # Manter uma referência da imagem
+    label_image.place(x=x_offset, y=y_offset)
+else:
+    label_image = ttk.Label(left_frame, text="Imagem não encontrada", font=('Helvetica', 16))
+    label_image.pack(fill=tk.BOTH, expand=True)
+
+# Criar um frame principal dentro do frame direito
+frame = ttk.Frame(right_frame, padding="20", style="Right.TFrame")
+frame.pack(expand=True)
 
 # Adicionar um título
-titulo = ttk.Label(frame, text="Selecione um Arquivo Excel", font=('Helvetica', 16, 'bold'))
+titulo = ttk.Label(frame, text="Análise de Vendas", font=('Helvetica', 16, 'bold'), background="white")
 titulo.pack(pady=10)
 
+# Entrada para data de início
+ttk.Label(frame, text="Data de Início (dd/mm/yyyy):", background="white").pack(pady=5)
+entrada_data_inicio = ttk.Entry(frame, width= 30)
+entrada_data_inicio.pack(pady=5)
+
+# Entrada para data de fim
+ttk.Label(frame, text="Data de Fim (dd/mm/yyyy):", background="white").pack(pady=5)
+entrada_data_fim = ttk.Entry(frame, width= 30)
+entrada_data_fim.pack(pady=5)
+
 # Criar um botão para abrir o diálogo de seleção de arquivo
-btn_selecionar = ttk.Button(frame, text="Selecionar Arquivo Excel", command=selecionar_arquivo)
+btn_selecionar = ttk.Button(frame, text="Adicionar Arquivo Excel", command=selecionar_arquivo)
 btn_selecionar.pack(pady=20)
 
 # Iniciar o loop da interface gráfica
